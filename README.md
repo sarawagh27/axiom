@@ -1,78 +1,132 @@
-# Pingbomb Bot
+# ⚡ Axiom  
+### Controlled Discord Automation Engine
 
-Pingbomb Bot is a **modular Discord bot** built using **Node.js** and **discord.js**, designed to demonstrate clean architecture, safety-first command handling, and real-world bot features such as cooldowns, logging, persistence, and owner controls.
-
-The project focuses on **controlled usage**, **maintainability**, and **24/7 deployment readiness**, rather than spam or abuse.
-
----
-
-## Why This Project Exists
-
-This bot was built as a learning and showcase project to:
-
-- Practice real Discord bot architecture
-- Implement safety mechanisms (cooldowns, opt-in, owner controls)
-- Learn structured logging and persistent state handling
-- Prepare a bot for cloud deployment (Railway / Render)
-- Follow clean, modular JavaScript design
+> A modular Discord automation engine built with Node.js and discord.js  
+> Designed for controlled execution, safety, and scalable architecture.
 
 ---
 
-## Key Features
+## 🚀 Overview
 
-### Core Functionality
-- Slash-command based interface
-- Controlled pingbomb system
-- Multi-target ping support
-- Start, Stop, and StopAll controls
+**Axiom** is a structured Discord automation framework focused on controlled, monitored command execution.
 
-### Safety & Control
-- Cooldown per caller (prevents spam)
-- Owner-only StopAll command
-- User opt-in system
-- Automatic timeout handling
+It includes built-in cooldown systems, logging, persistent state handling, and safety controls to ensure reliable operation across servers.
 
-### Engineering Features
-- Modular file structure
-- Persistent state (`state.json`)
-- Structured logging (`pingbomb.log`)
-- Clean separation of logic
-- Easy to extend and maintain
-
-### Deployment Ready
-- Environment variable support
-- No secrets committed to GitHub
-- Works locally and on cloud platforms
-- Designed for 24/7 hosting
+Built with clean modular architecture for maintainability and scalability.
 
 ---
 
-## Commands Overview
+## ✨ Core Features
 
-| Command | Description |
-|-------|-------------|
-| `/pingbomb start` | Start a controlled pingbomb |
-| `/pingbomb stop` | Stop an active pingbomb |
-| `/pingbomb stopall` | Stop all pingbombs (owner only) |
-| `/pingbomb status` | View current pingbomb status |
-| `/pingbomb optin` | Allow yourself to be pinged |
+- ⚙️ Slash command architecture
+- 🎯 Controlled multi-target execution system
+- 🛑 Stop / Emergency stop controls
+- ⏳ Intelligent cooldown management
+- 💾 Persistent state storage
+- 📜 Structured logging system
+- 🧩 Modular file architecture
+- ☁️ 24/7 deployment ready (Render + UptimeRobot)
 
 ---
 
-## Project Structure
+## 🧠 Project Structure
 
-```txt
-discord-bot/
+```
+axiom/
 │
-├── index.js        # Bot entry point
-├── commands.js     # Slash command definitions
-├── pingbomb.js     # Core pingbomb logic
-├── cooldown.js     # Cooldown handling
-├── state.js        # Persistent state manager
-├── logger.js       # File-based logging
-├── config.js       # Central configuration
-│
-├── package.json
-├── package-lock.json
-├── .gitignore
-└── README.md
+├── index.js        → Entry point
+├── commands.js     → Slash command registration
+├── pingbomb.js     → Core automation logic
+├── cooldown.js     → Cooldown system
+├── logger.js       → Logging module
+├── state.js        → Persistent state handler
+├── server.js       → Keep-alive server (for hosting)
+├── config.js       → Config file
+├── .env            → Environment variables
+└── package.json
+```
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Runtime | Node.js |
+| Framework | discord.js |
+| Config | dotenv |
+| Hosting | Render |
+| Monitoring | UptimeRobot |
+| Version Control | Git + GitHub |
+
+---
+
+## 🔐 Safety Architecture
+
+Axiom is built with controlled automation in mind:
+
+- Owner-restricted execution
+- Global stop system
+- Cooldown enforcement
+- Execution logging
+- Persistent state safety
+
+---
+
+## 🧪 Running Locally
+
+### 1️⃣ Install dependencies
+
+```
+npm install
+```
+
+### 2️⃣ Create `.env` file
+
+```
+TOKEN=your_bot_token_here
+CLIENT_ID=your_client_id_here
+GUILD_ID=your_guild_id_here
+```
+
+### 3️⃣ Start the bot
+
+```
+node index.js
+```
+
+---
+
+## ☁️ 24/7 Hosting (Render + UptimeRobot)
+
+1. Deploy repository to Render
+2. Add environment variables in Render dashboard
+3. Ensure `server.js` runs to keep process alive
+4. Use UptimeRobot to ping your Render URL every 5 minutes
+
+---
+
+## 🎯 Vision
+
+Axiom is designed as a scalable automation engine, not just a basic Discord bot.
+
+Future improvements may include:
+
+- Role-based permission system
+- Multi-guild scaling
+- Web dashboard
+- Metrics tracking
+
+---
+
+## 👩‍💻 Author
+
+**Sara Wagh**  
+Computer Science Engineer  
+Focused on scalable system design and automation architecture.
+
+---
+
+## 📜 License
+
+MIT License
