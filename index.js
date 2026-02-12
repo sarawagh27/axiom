@@ -17,16 +17,9 @@ const optIn = new Set();   // key: guildId:userId
 const active = new Map(); // key: guildId:userId -> { interval, timeout }
 
 // ===== READY =====
-// ===== READY =====
 client.once("clientReady", () => {
-  loadState();
-
-  log(`Bot online as ${client.user.tag}`);
-
-  // Clean Minimal Status
-  client.user.setActivity("⚡ Axiom Engine", {
-    type: 0, // Playing
-  });
+  console.log(`🚀 Bot online as ${client.user.tag}`);
+  client.user.setActivity("⚡ Axiom Engine", { type: 0 });
 });
 
 // ===== COMMAND HANDLER =====
@@ -133,3 +126,4 @@ client.on("interactionCreate", async i => {
 
 // ===== LOGIN =====
 client.login(process.env.DISCORD_TOKEN);
+
