@@ -123,27 +123,37 @@ client.on("interactionCreate", async interaction => {
     // ---- LIST ----
     if (sub === "list") {
 
-      const reminders = getUserReminders(interaction.user.id);
+  const reminders = getUserReminders(interaction.user.id);
 
-      if (!reminders.length) {
-        return interaction.reply({
-          content: "You have no active reminders.",
-          ephemeral: true
-        });
-      }
+  if (!reminders.length) {
+    return interaction.reply({
+      content: "You have no active reminders.",
+      ephemeral: true
+    });
+  }
 
-      let message = "Your reminders:\n\n";
+  const { EmbedBuilder } = require("discord.js");
 
-      reminders.forEach(r => {
-        const time = DateTime.fromMillis(r.time).toFormat("ff");
-        message += `ID: ${r.id}\nTime: ${time}\nText: ${r.text}\n\n`;
-      });
+  const embed = new EmbedBuilder()
+    .setTitle("Your Active Reminders")
+    .setColor(0x5865F2)
+    .setFooter({ text: "Use /remind cancel <id> to remove a reminder" })
+    .setTimestamp();
 
-      await interaction.reply({
-        content: message,
-        ephemeral: true
-      });
-    }
+  reminders.forEach((r, index) => {
+    const time = DateTime.fromMillis(r.time).toFormat("ff");
+
+    embed.addFields({
+      name: `Reminder ${index + 1}`,
+      value: `ID: \`${r.id}\`\nTime: ${time}\nText: ${r.text}`
+    });
+  });
+
+  await interaction.reply({
+    embeds: [embed],
+    ephemeral: true
+  });
+}
 
     // ---- CANCEL ----
     if (sub === "cancel") {
