@@ -1,50 +1,46 @@
-const { loadReminders, removeReminder } = require("./reminderStore");
+const { getAllReminders } = require("./reminderStore");
 
-let scheduled = new Map();
+const scheduled = new Map();
 
 function scheduleReminder(client, reminder) {
+
   const delay = reminder.time - Date.now();
 
-  if (delay <= 0) {
-    executeReminder(client, reminder);
-    return;
-  }
+  if (delay <= 0) return;
 
-  const timeout = setTimeout(() => {
-    executeReminder(client, reminder);
+  const timeout = setTimeout(async () => {
+
+    try {
+      const user = await client.users.fetch(reminder.userId);
+
+      await user.send(`⏰ Reminder:\n${reminder.text}`);
+
+      scheduled.delete(reminder.id);
+
+    } catch (err) {
+      console.error("Failed to send reminder:", err);
+    }
+
   }, delay);
 
   scheduled.set(reminder.id, timeout);
 }
 
-async function executeReminder(client, reminder) {
-  try {
-    const user = await client.users.fetch(reminder.userId);
-
-    if (!user) return;
-
-    await user.send(`⏰ Reminder: ${reminder.text}`);
-
-    removeReminder(reminder.id);
-    scheduled.delete(reminder.id);
-
-  } catch (err) {
-    console.error("Reminder execution failed:", err);
-  }
-}
-
 function loadAndSchedule(client) {
-  const reminders = loadReminders();
+
+  const reminders = getAllReminders();
 
   reminders.forEach(reminder => {
     scheduleReminder(client, reminder);
   });
 }
 
-function cancelScheduled(id) {
-  if (scheduled.has(id)) {
-    clearTimeout(scheduled.get(id));
-    scheduled.delete(id);
+function cancelScheduled(reminderId) {
+  const timeout = scheduled.get(reminderId);
+
+  if (timeout) {
+    clearTimeout(timeout);
+    scheduled.delete(reminderId);
   }
 }
 
