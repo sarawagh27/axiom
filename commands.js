@@ -1,83 +1,117 @@
-require("dotenv").config();
-const { REST, Routes, SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder } = require("discord.js");
 
 const commands = [
+
+  // ===============================
+  // PINGBOMB (KEEPING EXISTING STRUCTURE)
+  // ===============================
   new SlashCommandBuilder()
     .setName("pingbomb")
-    .setDescription("High-speed pingbomb controls (auto-stops after 60 seconds)")
-
-    .addSubcommand(sub =>
-      sub
-        .setName("optin")
-        .setDescription("Allow a user to receive pingbombs")
-        .addUserOption(option =>
-          option
-            .setName("user")
-            .setDescription("User opting in")
-            .setRequired(true)
-        )
-    )
+    .setDescription("Controlled ping system")
 
     .addSubcommand(sub =>
       sub
         .setName("start")
-        .setDescription("Start a 60-second high-speed pingbomb")
+        .setDescription("Start controlled ping session")
         .addUserOption(option =>
           option
             .setName("user")
-            .setDescription("Primary target")
+            .setDescription("User to ping")
             .setRequired(true)
         )
-        .addUserOption(option =>
+        .addStringOption(option =>
           option
-            .setName("user2")
-            .setDescription("Optional second target")
-        )
-        .addUserOption(option =>
-          option
-            .setName("user3")
-            .setDescription("Optional third target")
+            .setName("text")
+            .setDescription("Optional custom message")
+            .setRequired(false)
         )
     )
 
     .addSubcommand(sub =>
       sub
         .setName("stop")
-        .setDescription("Stop an active pingbomb for a user")
-        .addUserOption(option =>
-          option
-            .setName("user")
-            .setDescription("User whose pingbomb should stop")
-            .setRequired(true)
-        )
-    )
-
-    .addSubcommand(sub =>
-      sub
-        .setName("status")
-        .setDescription("Show currently active pingbombs")
+        .setDescription("Stop active ping session")
     )
 
     .addSubcommand(sub =>
       sub
         .setName("stopall")
-        .setDescription("Emergency: stop all active pingbombs (owner only)")
+        .setDescription("Stop all active ping sessions (Owner only)")
     )
-].map(cmd => cmd.toJSON());
 
-const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+    .addSubcommand(sub =>
+      sub
+        .setName("status")
+        .setDescription("Check active ping sessions")
+    )
 
-(async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(
-        process.env.CLIENT_ID,
-        process.env.GUILD_ID
-      ),
-      { body: commands }
-    );
-    console.log("Pingbomb slash commands registered");
-  } catch (error) {
-    console.error("Failed to register commands:", error);
-  }
-})();
+    .toJSON(),
+
+  // ===============================
+  // REMINDER SYSTEM
+  // ===============================
+  new SlashCommandBuilder()
+    .setName("remind")
+    .setDescription("Reminder management system")
+
+    .addSubcommand(sub =>
+      sub
+        .setName("create")
+        .setDescription("Create a new reminder")
+        .addStringOption(option =>
+          option
+            .setName("time")
+            .setDescription("When to remind (e.g., tomorrow 9:30pm, next Monday 5pm)")
+            .setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName("text")
+            .setDescription("What should be reminded?")
+            .setRequired(true)
+        )
+        .addUserOption(option =>
+          option
+            .setName("user")
+            .setDescription("User to remind (optional)")
+            .setRequired(false)
+        )
+    )
+
+    .addSubcommand(sub =>
+      sub
+        .setName("list")
+        .setDescription("List your active reminders")
+    )
+
+    .addSubcommand(sub =>
+      sub
+        .setName("cancel")
+        .setDescription("Cancel a reminder by ID")
+        .addStringOption(option =>
+          option
+            .setName("id")
+            .setDescription("Reminder ID from /remind list")
+            .setRequired(true)
+        )
+    )
+
+    .toJSON(),
+
+  // ===============================
+  // TIMEZONE SYSTEM
+  // ===============================
+  new SlashCommandBuilder()
+    .setName("timezone")
+    .setDescription("Set your timezone")
+    .addStringOption(option =>
+      option
+        .setName("zone")
+        .setDescription("Example: Asia/Kolkata, UTC, Europe/London")
+        .setRequired(true)
+    )
+    .toJSON()
+
+];
+
+module.exports = commands;
