@@ -39,32 +39,6 @@ const client = new Client({
   ]
 });
 
-
-// ==============================
-// TIMEZONE SYSTEM
-// ==============================
-
-function loadTimezones() {
-  if (!fs.existsSync(timezoneFile)) return {};
-  return JSON.parse(fs.readFileSync(timezoneFile));
-}
-
-function saveTimezones(data) {
-  fs.writeFileSync(timezoneFile, JSON.stringify(data, null, 2));
-}
-
-function getUserTimezone(userId) {
-  const zones = loadTimezones();
-  return zones[userId] || "UTC";
-}
-
-function setUserTimezone(userId, zone) {
-  const zones = loadTimezones();
-  zones[userId] = zone;
-  saveTimezones(zones);
-}
-
-
 // ==============================
 // READY
 // ==============================
@@ -75,7 +49,6 @@ client.once("clientReady", () => {
   loadAndSchedule(client);
 });
 
-
 // ==============================
 // INTERACTION HANDLER
 // ==============================
@@ -83,25 +56,51 @@ client.once("clientReady", () => {
 client.on("interactionCreate", async interaction => {
 
   // ==========================
-  // BUTTON INTERACTIONS
+  // BUTTON HANDLER
   // ==========================
   if (interaction.isButton()) {
 
-    const [action, userId, pageStr] = interaction.customId.split(":");
+    const parts = interaction.customId.split(":");
 
-    if (interaction.user.id !== userId) {
-      return interaction.reply({
-        content: "You cannot control someone else's reminder view.",
-        ephemeral: true
-      });
+    // NAVIGATION BUTTONS
+    if (parts[0] === "next" || parts[0] === "prev") {
+
+      const action = parts[0];
+      const userId = parts[1];
+      let page = parseInt(parts[2]);
+
+      if (interaction.user.id !== userId) {
+        return interaction.reply({
+          content: "You cannot control someone else's reminder view.",
+          ephemeral: true
+        });
+      }
+
+      if (action === "next") page++;
+      if (action === "prev") page--;
+
+      return updateReminderPage(interaction, page);
     }
 
-    let page = parseInt(pageStr);
+    // CANCEL BUTTON
+    if (parts[0] === "cancel") {
 
-    if (action === "next") page++;
-    if (action === "prev") page--;
+      const userId = parts[1];
+      const reminderId = parts[2];
+      const page = parseInt(parts[3]);
 
-    return updateReminderPage(interaction, page);
+      if (interaction.user.id !== userId) {
+        return interaction.reply({
+          content: "You cannot cancel someone else's reminder.",
+          ephemeral: true
+        });
+      }
+
+      removeReminder(reminderId);
+      cancelScheduled(reminderId);
+
+      return updateReminderPage(interaction, page);
+    }
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -113,14 +112,11 @@ client.on("interactionCreate", async interaction => {
 
     const sub = interaction.options.getSubcommand();
 
-    // ---------- CREATE ----------
     if (sub === "create") {
 
       const timeInput = interaction.options.getString("time");
       const text = interaction.options.getString("text");
-      const user = interaction.options.getUser("user") || interaction.user;
 
-      const timezone = getUserTimezone(interaction.user.id);
       const parsedDate = chrono.parseDate(timeInput);
 
       if (!parsedDate) {
@@ -130,7 +126,7 @@ client.on("interactionCreate", async interaction => {
         });
       }
 
-      const targetTime = DateTime.fromJSDate(parsedDate).setZone(timezone);
+      const targetTime = DateTime.fromJSDate(parsedDate);
 
       if (targetTime.toMillis() <= Date.now()) {
         return interaction.reply({
@@ -141,7 +137,7 @@ client.on("interactionCreate", async interaction => {
 
       const reminder = {
         id: uuidv4(),
-        userId: user.id,
+        userId: interaction.user.id,
         text,
         time: targetTime.toMillis()
       };
@@ -149,68 +145,21 @@ client.on("interactionCreate", async interaction => {
       addReminder(reminder);
       scheduleReminder(client, reminder);
 
-      await interaction.reply({
-        content: `Reminder set for ${user.username}.`,
+      return interaction.reply({
+        content: "Reminder created successfully.",
         ephemeral: true
       });
     }
 
-    // ---------- LIST ----------
     if (sub === "list") {
       return updateReminderPage(interaction, 0);
     }
-
-    // ---------- CANCEL ----------
-    if (sub === "cancel") {
-
-      const id = interaction.options.getString("id");
-
-      const reminders = getUserReminders(interaction.user.id);
-      const exists = reminders.find(r => r.id === id);
-
-      if (!exists) {
-        return interaction.reply({
-          content: "Invalid reminder ID.",
-          ephemeral: true
-        });
-      }
-
-      removeReminder(id);
-      cancelScheduled(id);
-
-      await interaction.reply({
-        content: "Reminder cancelled.",
-        ephemeral: true
-      });
-    }
-  }
-
-  // ==========================
-  // TIMEZONE
-  // ==========================
-  if (interaction.commandName === "timezone") {
-
-    const zone = interaction.options.getString("zone");
-
-    if (!DateTime.now().setZone(zone).isValid) {
-      return interaction.reply({
-        content: "Invalid timezone.",
-        ephemeral: true
-      });
-    }
-
-    setUserTimezone(interaction.user.id, zone);
-
-    await interaction.reply({
-      content: `Timezone set to ${zone}.`,
-      ephemeral: true
-    });
   }
 });
 
 
 // ==============================
-// PAGINATED LIST SYSTEM
+// PAGINATED VIEW WITH CANCEL
 // ==============================
 
 async function updateReminderPage(interaction, page) {
@@ -237,22 +186,34 @@ async function updateReminderPage(interaction, page) {
   const currentReminders = reminders.slice(start, end);
 
   const embed = new EmbedBuilder()
-    .setTitle(`Your Active Reminders (Page ${page + 1}/${totalPages})`)
+    .setTitle(`Your Reminders (Page ${page + 1}/${totalPages})`)
     .setColor(0x5865F2)
     .setTimestamp();
 
+  const rows = [];
+
   currentReminders.forEach((r, index) => {
+
     const reminderTime = DateTime.fromMillis(r.time);
-    const diff = reminderTime.diff(DateTime.now(), ["days", "hours", "minutes", "seconds"]).toObject();
+    const diff = reminderTime.diff(DateTime.now(), ["days", "hours", "minutes"]).toObject();
     const countdown = formatCountdown(diff);
 
     embed.addFields({
       name: `Reminder ${start + index + 1}`,
-      value: `ID: \`${r.id}\`\nIn: ${countdown}\nText: ${r.text}`
+      value: `In: ${countdown}\nText: ${r.text}`
     });
+
+    rows.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`cancel:${interaction.user.id}:${r.id}:${page}`)
+          .setLabel("Cancel")
+          .setStyle(ButtonStyle.Danger)
+      )
+    );
   });
 
-  const row = new ActionRowBuilder().addComponents(
+  const navRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`prev:${interaction.user.id}:${page}`)
       .setLabel("Previous")
@@ -266,12 +227,14 @@ async function updateReminderPage(interaction, page) {
       .setDisabled(page === totalPages - 1)
   );
 
+  rows.push(navRow);
+
   if (interaction.isButton()) {
-    return interaction.update({ embeds: [embed], components: [row] });
+    return interaction.update({ embeds: [embed], components: rows });
   } else {
     return interaction.reply({
       embeds: [embed],
-      components: [row],
+      components: rows,
       ephemeral: true
     });
   }
@@ -279,7 +242,7 @@ async function updateReminderPage(interaction, page) {
 
 
 // ==============================
-// COUNTDOWN FORMATTER
+// COUNTDOWN
 // ==============================
 
 function formatCountdown(diff) {
@@ -288,7 +251,6 @@ function formatCountdown(diff) {
   if (diff.days) parts.push(`${Math.floor(diff.days)}d`);
   if (diff.hours) parts.push(`${Math.floor(diff.hours)}h`);
   if (diff.minutes) parts.push(`${Math.floor(diff.minutes)}m`);
-  if (diff.seconds) parts.push(`${Math.floor(diff.seconds)}s`);
 
   if (!parts.length) return "Less than a minute";
   return parts.join(" ");
