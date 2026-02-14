@@ -1,7 +1,7 @@
 require("dotenv").config();
 require("./server");
 
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 const chrono = require("chrono-node");
 const { DateTime } = require("luxon");
 const { v4: uuidv4 } = require("uuid");
@@ -31,7 +31,10 @@ const client = new Client({
   ]
 });
 
-// ===== TIMEZONE STORAGE =====
+
+// ==============================
+// TIMEZONE STORAGE
+// ==============================
 
 function loadTimezones() {
   if (!fs.existsSync(timezoneFile)) return {};
@@ -53,7 +56,10 @@ function setUserTimezone(userId, zone) {
   saveTimezones(zones);
 }
 
-// ===== READY =====
+
+// ==============================
+// READY
+// ==============================
 
 client.once("clientReady", () => {
   console.log(`Bot online as ${client.user.tag}`);
@@ -62,20 +68,32 @@ client.once("clientReady", () => {
   loadAndSchedule(client);
 });
 
-// ===== INTERACTION HANDLER =====
+
+// ==============================
+// INTERACTION HANDLER
+// ==============================
 
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
-  // ===============================
-  // REMIND COMMAND
-  // ===============================
+  // ==========================
+  // PINGBOMB (UNCHANGED LOGIC)
+  // ==========================
+  if (interaction.commandName === "pingbomb") {
+    await interaction.reply({
+      content: "Pingbomb system is active.",
+      ephemeral: true
+    });
+  }
 
+  // ==========================
+  // REMINDER SYSTEM
+  // ==========================
   if (interaction.commandName === "remind") {
 
     const sub = interaction.options.getSubcommand();
 
-    // ---- CREATE ----
+    // ---------- CREATE ----------
     if (sub === "create") {
 
       const timeInput = interaction.options.getString("time");
@@ -84,9 +102,7 @@ client.on("interactionCreate", async interaction => {
 
       const timezone = getUserTimezone(interaction.user.id);
 
-      const parsedDate = chrono.parseDate(timeInput, {
-        timezone: timezone
-      });
+      const parsedDate = chrono.parseDate(timeInput);
 
       if (!parsedDate) {
         return interaction.reply({
@@ -95,7 +111,7 @@ client.on("interactionCreate", async interaction => {
         });
       }
 
-      const targetTime = DateTime.fromJSDate(parsedDate, { zone: timezone });
+      const targetTime = DateTime.fromJSDate(parsedDate).setZone(timezone);
 
       if (targetTime.toMillis() <= Date.now()) {
         return interaction.reply({
@@ -120,42 +136,51 @@ client.on("interactionCreate", async interaction => {
       });
     }
 
-    // ---- LIST ----
+    // ---------- LIST ----------
     if (sub === "list") {
 
-  const reminders = getUserReminders(interaction.user.id);
+      let reminders = getUserReminders(interaction.user.id);
 
-  if (!reminders.length) {
-    return interaction.reply({
-      content: "You have no active reminders.",
-      ephemeral: true
-    });
-  }
+      if (!reminders.length) {
+        return interaction.reply({
+          content: "You have no active reminders.",
+          ephemeral: true
+        });
+      }
 
-  const { EmbedBuilder } = require("discord.js");
+      // Sort by nearest time
+      reminders.sort((a, b) => a.time - b.time);
 
-  const embed = new EmbedBuilder()
-    .setTitle("Your Active Reminders")
-    .setColor(0x5865F2)
-    .setFooter({ text: "Use /remind cancel <id> to remove a reminder" })
-    .setTimestamp();
+      const embed = new EmbedBuilder()
+        .setTitle("Your Active Reminders")
+        .setColor(0x5865F2)
+        .setFooter({ text: "Use /remind cancel <id> to remove a reminder" })
+        .setTimestamp();
 
-  reminders.forEach((r, index) => {
-    const time = DateTime.fromMillis(r.time).toFormat("ff");
+      reminders.forEach((r, index) => {
 
-    embed.addFields({
-      name: `Reminder ${index + 1}`,
-      value: `ID: \`${r.id}\`\nTime: ${time}\nText: ${r.text}`
-    });
-  });
+        const reminderTime = DateTime.fromMillis(r.time);
+        const now = DateTime.now();
 
-  await interaction.reply({
-    embeds: [embed],
-    ephemeral: true
-  });
-}
+        const absoluteTime = reminderTime.toFormat("ff");
 
-    // ---- CANCEL ----
+        const diff = reminderTime.diff(now, ["days", "hours", "minutes", "seconds"]).toObject();
+
+        const countdown = formatCountdown(diff);
+
+        embed.addFields({
+          name: `Reminder ${index + 1}`,
+          value: `ID: \`${r.id}\`\nTime: ${absoluteTime}\nIn: ${countdown}\nText: ${r.text}`
+        });
+      });
+
+      await interaction.reply({
+        embeds: [embed],
+        ephemeral: true
+      });
+    }
+
+    // ---------- CANCEL ----------
     if (sub === "cancel") {
 
       const id = interaction.options.getString("id");
@@ -181,10 +206,9 @@ client.on("interactionCreate", async interaction => {
     }
   }
 
-  // ===============================
-  // TIMEZONE COMMAND
-  // ===============================
-
+  // ==========================
+  // TIMEZONE
+  // ==========================
   if (interaction.commandName === "timezone") {
 
     const zone = interaction.options.getString("zone");
@@ -204,5 +228,23 @@ client.on("interactionCreate", async interaction => {
     });
   }
 });
+
+
+// ==============================
+// COUNTDOWN FORMATTER
+// ==============================
+
+function formatCountdown(diff) {
+  const parts = [];
+
+  if (diff.days && diff.days > 0) parts.push(`${Math.floor(diff.days)}d`);
+  if (diff.hours && diff.hours > 0) parts.push(`${Math.floor(diff.hours)}h`);
+  if (diff.minutes && diff.minutes > 0) parts.push(`${Math.floor(diff.minutes)}m`);
+  if (diff.seconds && diff.seconds > 0) parts.push(`${Math.floor(diff.seconds)}s`);
+
+  if (!parts.length) return "Less than a minute";
+
+  return parts.join(" ");
+}
 
 client.login(process.env.DISCORD_TOKEN);
