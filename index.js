@@ -1,7 +1,15 @@
 require("dotenv").config();
 require("./server");
 
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
+
 const chrono = require("chrono-node");
 const { DateTime } = require("luxon");
 const { v4: uuidv4 } = require("uuid");
@@ -33,7 +41,7 @@ const client = new Client({
 
 
 // ==============================
-// TIMEZONE STORAGE
+// TIMEZONE SYSTEM
 // ==============================
 
 function loadTimezones() {
@@ -64,7 +72,6 @@ function setUserTimezone(userId, zone) {
 client.once("clientReady", () => {
   console.log(`Bot online as ${client.user.tag}`);
   client.user.setActivity("Axiom Reminder Engine", { type: 0 });
-
   loadAndSchedule(client);
 });
 
@@ -74,20 +81,33 @@ client.once("clientReady", () => {
 // ==============================
 
 client.on("interactionCreate", async interaction => {
+
+  // ==========================
+  // BUTTON INTERACTIONS
+  // ==========================
+  if (interaction.isButton()) {
+
+    const [action, userId, pageStr] = interaction.customId.split(":");
+
+    if (interaction.user.id !== userId) {
+      return interaction.reply({
+        content: "You cannot control someone else's reminder view.",
+        ephemeral: true
+      });
+    }
+
+    let page = parseInt(pageStr);
+
+    if (action === "next") page++;
+    if (action === "prev") page--;
+
+    return updateReminderPage(interaction, page);
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   // ==========================
-  // PINGBOMB (UNCHANGED LOGIC)
-  // ==========================
-  if (interaction.commandName === "pingbomb") {
-    await interaction.reply({
-      content: "Pingbomb system is active.",
-      ephemeral: true
-    });
-  }
-
-  // ==========================
-  // REMINDER SYSTEM
+  // REMIND COMMAND
   // ==========================
   if (interaction.commandName === "remind") {
 
@@ -101,12 +121,11 @@ client.on("interactionCreate", async interaction => {
       const user = interaction.options.getUser("user") || interaction.user;
 
       const timezone = getUserTimezone(interaction.user.id);
-
       const parsedDate = chrono.parseDate(timeInput);
 
       if (!parsedDate) {
         return interaction.reply({
-          content: "Invalid time format. Example: tomorrow 9:30pm, next Monday 5pm",
+          content: "Invalid time format.",
           ephemeral: true
         });
       }
@@ -131,53 +150,14 @@ client.on("interactionCreate", async interaction => {
       scheduleReminder(client, reminder);
 
       await interaction.reply({
-        content: `Reminder set for ${user.username} at ${targetTime.toFormat("ff")} (${timezone}).`,
+        content: `Reminder set for ${user.username}.`,
         ephemeral: true
       });
     }
 
     // ---------- LIST ----------
     if (sub === "list") {
-
-      let reminders = getUserReminders(interaction.user.id);
-
-      if (!reminders.length) {
-        return interaction.reply({
-          content: "You have no active reminders.",
-          ephemeral: true
-        });
-      }
-
-      // Sort by nearest time
-      reminders.sort((a, b) => a.time - b.time);
-
-      const embed = new EmbedBuilder()
-        .setTitle("Your Active Reminders")
-        .setColor(0x5865F2)
-        .setFooter({ text: "Use /remind cancel <id> to remove a reminder" })
-        .setTimestamp();
-
-      reminders.forEach((r, index) => {
-
-        const reminderTime = DateTime.fromMillis(r.time);
-        const now = DateTime.now();
-
-        const absoluteTime = reminderTime.toFormat("ff");
-
-        const diff = reminderTime.diff(now, ["days", "hours", "minutes", "seconds"]).toObject();
-
-        const countdown = formatCountdown(diff);
-
-        embed.addFields({
-          name: `Reminder ${index + 1}`,
-          value: `ID: \`${r.id}\`\nTime: ${absoluteTime}\nIn: ${countdown}\nText: ${r.text}`
-        });
-      });
-
-      await interaction.reply({
-        embeds: [embed],
-        ephemeral: true
-      });
+      return updateReminderPage(interaction, 0);
     }
 
     // ---------- CANCEL ----------
@@ -186,7 +166,6 @@ client.on("interactionCreate", async interaction => {
       const id = interaction.options.getString("id");
 
       const reminders = getUserReminders(interaction.user.id);
-
       const exists = reminders.find(r => r.id === id);
 
       if (!exists) {
@@ -215,7 +194,7 @@ client.on("interactionCreate", async interaction => {
 
     if (!DateTime.now().setZone(zone).isValid) {
       return interaction.reply({
-        content: "Invalid timezone. Example: Asia/Kolkata",
+        content: "Invalid timezone.",
         ephemeral: true
       });
     }
@@ -231,19 +210,87 @@ client.on("interactionCreate", async interaction => {
 
 
 // ==============================
+// PAGINATED LIST SYSTEM
+// ==============================
+
+async function updateReminderPage(interaction, page) {
+
+  let reminders = getUserReminders(interaction.user.id);
+
+  if (!reminders.length) {
+    return interaction.reply({
+      content: "You have no active reminders.",
+      ephemeral: true
+    });
+  }
+
+  reminders.sort((a, b) => a.time - b.time);
+
+  const perPage = 5;
+  const totalPages = Math.ceil(reminders.length / perPage);
+
+  if (page < 0) page = 0;
+  if (page >= totalPages) page = totalPages - 1;
+
+  const start = page * perPage;
+  const end = start + perPage;
+  const currentReminders = reminders.slice(start, end);
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Your Active Reminders (Page ${page + 1}/${totalPages})`)
+    .setColor(0x5865F2)
+    .setTimestamp();
+
+  currentReminders.forEach((r, index) => {
+    const reminderTime = DateTime.fromMillis(r.time);
+    const diff = reminderTime.diff(DateTime.now(), ["days", "hours", "minutes", "seconds"]).toObject();
+    const countdown = formatCountdown(diff);
+
+    embed.addFields({
+      name: `Reminder ${start + index + 1}`,
+      value: `ID: \`${r.id}\`\nIn: ${countdown}\nText: ${r.text}`
+    });
+  });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`prev:${interaction.user.id}:${page}`)
+      .setLabel("Previous")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === 0),
+
+    new ButtonBuilder()
+      .setCustomId(`next:${interaction.user.id}:${page}`)
+      .setLabel("Next")
+      .setStyle(ButtonStyle.Secondary)
+      .setDisabled(page === totalPages - 1)
+  );
+
+  if (interaction.isButton()) {
+    return interaction.update({ embeds: [embed], components: [row] });
+  } else {
+    return interaction.reply({
+      embeds: [embed],
+      components: [row],
+      ephemeral: true
+    });
+  }
+}
+
+
+// ==============================
 // COUNTDOWN FORMATTER
 // ==============================
 
 function formatCountdown(diff) {
   const parts = [];
 
-  if (diff.days && diff.days > 0) parts.push(`${Math.floor(diff.days)}d`);
-  if (diff.hours && diff.hours > 0) parts.push(`${Math.floor(diff.hours)}h`);
-  if (diff.minutes && diff.minutes > 0) parts.push(`${Math.floor(diff.minutes)}m`);
-  if (diff.seconds && diff.seconds > 0) parts.push(`${Math.floor(diff.seconds)}s`);
+  if (diff.days) parts.push(`${Math.floor(diff.days)}d`);
+  if (diff.hours) parts.push(`${Math.floor(diff.hours)}h`);
+  if (diff.minutes) parts.push(`${Math.floor(diff.minutes)}m`);
+  if (diff.seconds) parts.push(`${Math.floor(diff.seconds)}s`);
 
   if (!parts.length) return "Less than a minute";
-
   return parts.join(" ");
 }
 
